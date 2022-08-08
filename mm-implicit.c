@@ -65,10 +65,11 @@ header_t *
 first_fit(size_t csz)
 {
 	header_t *current = mem_heap_lo();
+	if(mem_heapsize() == 0)
+		current = NULL;
 	while (current != NULL)
 	{
-
-		if (current->size > csz && !current->allocated)
+		if (current->size >= csz && !current->allocated)
 		{
 			break;
 		}
@@ -220,36 +221,41 @@ mm_realloc(void *ptr, size_t size)
 		mm_free(ptr);
 		return NULL;
 	}
-	header_t* current = payload2header(ptr);
-	size_t old_size = current->size;
+	size_t old_size = payload2header(ptr)->size;
 	size_t new_size = align(size) + hdr_size;
+	header_t *current = payload2header(ptr);
 	// Check heap correctness after realloc to catch bugs
-	if(old_size < new_size) {
-		header_t * next = next_chunk(current);
-
-		while(next != NULL && !next->allocated) {
-
-			current->size += next->size; 
-
-			int remaining = current->size - new_size;
-			// blocks can accumulate the new size
-			if(remaining >= 0) {
+	if (old_size < new_size)
+	{
+		header_t *next = next_chunk(current);
+		while ((next != NULL) && (next->allocated == 0))
+		{
+			int remain = (current->size + next->size) - new_size;
+			current->size += next->size;
+			if (remain >= 0)
+			{
 				split(current, new_size);
 				return ptr;
 			}
-			// need more blocks
-			next = next_chunk(next);
+			next = next_chunk(current);
 		}
-
 		current->size = old_size;
-		free(ptr);
-		header_t* resized = (header_t *)mm_malloc(size);
-		memcpy(resized, ptr, old_size-hdr_size);
+
+		void *resized = mm_malloc(size);
+		if (resized == NULL)
+		{
+			return NULL;
+		}
+		memcpy(resized, ptr, old_size - hdr_size);
+		mm_free(ptr);
 		return resized;
 	}
-	else{
+	else
+	{
 		return ptr;
 	}
+
+	// Check heap correctness after realloc to catch bugs
 	if (debug)
 	{
 		mm_checkheap(true);
@@ -265,30 +271,33 @@ mm_realloc(void *ptr, size_t size)
 heap_info_t
 mm_checkheap(bool verbose)
 {
+
 	heap_info_t info;
-	// Your code here
-	// traverse the heap to fill in the fields of info
-	header_t *current = (header_t *)mem_heap_lo();
+	header_t *current = mem_heap_lo();
 	info.num_allocated_chunks = 0;
 	info.num_free_chunks = 0;
 	info.allocated_size = 0;
 	info.free_size = 0;
+	if (mem_heapsize() == 0)
+	{
+		info.free_size = 0;
+		current = NULL;
+	}
 	while (current != NULL)
 	{
 		if (current->allocated)
 		{
-			info.allocated_size += current->size;
 			info.num_allocated_chunks += 1;
+			info.allocated_size += current->size;
 		}
 		else
 		{
-			info.free_size += current->size;
 			info.num_free_chunks += 1;
+			info.free_size += current->size;
 		}
-
 		current = next_chunk(current);
 	}
-	// correctness of implicit heap amounts to the following assertion
+	// correctness of implicit heap amounts to the following assertion.
 	assert(mem_heapsize() == (info.allocated_size + info.free_size));
 	return info;
 }
