@@ -127,7 +127,7 @@ test_mm_malloc()
 	init_chunk((header_t *)mem_sbrk(256), 256, true); 
 	//second chunk is 256 bytes and free
 	header_t *fp;
-	fp = (header_t *)mem_sbrk(256);
+	fp = mem_sbrk(256);
 	init_chunk(fp, 256, false);
 
 	//check that allocation is done in the beginning of 
